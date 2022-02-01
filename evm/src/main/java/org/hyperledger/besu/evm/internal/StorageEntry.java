@@ -21,10 +21,12 @@ import org.apache.tuweni.units.bigints.UInt256;
 public class StorageEntry {
   private final UInt256 offset;
   private final Bytes value;
+  private final Bytes oldValue;
 
-  public StorageEntry(final UInt256 offset, final Bytes value) {
+  public StorageEntry(final UInt256 offset, final Bytes value, final Bytes oldValue) {
     this.offset = offset;
     this.value = value;
+    this.oldValue = oldValue;
   }
 
   public UInt256 getOffset() {
@@ -33,5 +35,9 @@ public class StorageEntry {
 
   public Bytes getValue() {
     return value;
+  }
+
+  public Bytes getOldValue() {
+    return oldValue;
   }
 }

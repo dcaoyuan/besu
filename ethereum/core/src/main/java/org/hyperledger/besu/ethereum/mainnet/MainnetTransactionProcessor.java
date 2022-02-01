@@ -42,6 +42,7 @@ import org.hyperledger.besu.evm.account.EvmAccount;
 import org.hyperledger.besu.evm.account.MutableAccount;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
+import org.hyperledger.besu.evm.internal.StorageEntry;
 import org.hyperledger.besu.evm.processor.AbstractMessageProcessor;
 import org.hyperledger.besu.evm.tracing.OperationTracer;
 import org.hyperledger.besu.evm.worldstate.WorldUpdater;
@@ -91,8 +92,8 @@ public class MainnetTransactionProcessor {
    * $ bin/kafka-topics.sh --delete --bootstrap-server localhost:9092 --topic eth-txs
    * $ bin/kafka-topics.sh --create --bootstrap-server localhost:9092 --topic eth-txs --config compression.type=gzip --replication-factor 1 --partitions 1
    *
-   * Without compression, kafak logs about 4G/Day, 1.4T/Year
-   * With gzip compression, logs about 540M/Day, 193G/Year
+   * Without compression, kafak logs 4G+/Day, 1.4T+/Year
+   * With gzip compression, logs about 700M/Day, 250G/Year
    */
   private static final String KAFKA_TOPIC = "eth-txs";
   private static final String KAFKA_KEY = "eth";
@@ -489,6 +490,7 @@ public class MainnetTransactionProcessor {
         // --- kafka
         final var rlpOutput = new BytesValueRLPOutput();
         rlpOutput.startList();
+
         rlpOutput.writeLongScalar(blockHeader.getNumber());
         rlpOutput.writeBytes(transaction.getHash());
 
@@ -500,16 +502,24 @@ public class MainnetTransactionProcessor {
           rlpOutput.writeBytes(mf.getOriginatorAddress());
           rlpOutput.writeBytes(mf.getContractAddress());
           rlpOutput.writeBytes(mf.getSenderAddress());
-          rlpOutput.writeUInt256Scalar(mf.getGasPrice());
           if (transaction.isContractCreation() && i == 0) {
             rlpOutput.writeBytes(Bytes.EMPTY); // discard contract code
           } else {
             rlpOutput.writeBytes(mf.getInputData());
           }
           rlpOutput.writeBytes(mf.getReturnData());
+          rlpOutput.writeUInt256Scalar(mf.getGasPrice());
           rlpOutput.writeUInt256Scalar(mf.getValue());
           rlpOutput.writeUInt256Scalar(mf.getApparentValue());
           rlpOutput.writeInt(mf.getMessageStackDepth());
+
+          for (StorageEntry storageEntry : mf.getUpdatedStorages()) {
+            rlpOutput.startList();
+            rlpOutput.writeUInt256Scalar(storageEntry.getOffset());
+            rlpOutput.writeBytes(storageEntry.getOldValue());
+            rlpOutput.writeBytes(storageEntry.getValue());
+            rlpOutput.endList();
+          }
 
           rlpOutput.endList();
         }

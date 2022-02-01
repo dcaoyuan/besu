@@ -243,6 +243,8 @@ public class MessageFrame {
   private Optional<MemoryEntry> maybeUpdatedMemory = Optional.empty();
   private Optional<StorageEntry> maybeUpdatedStorage = Optional.empty();
 
+  private final List<StorageEntry> updatedStorages = new ArrayList<>();
+
   public static Builder builder() {
     return new Builder();
   }
@@ -722,8 +724,11 @@ public class MessageFrame {
     maybeUpdatedMemory = Optional.of(new MemoryEntry(offset, value));
   }
 
-  public void storageWasUpdated(final UInt256 storageAddress, final Bytes value) {
-    maybeUpdatedStorage = Optional.of(new StorageEntry(storageAddress, value));
+  public void storageWasUpdated(
+      final UInt256 storageAddress, final Bytes value, final Bytes oldValue) {
+    final var storageEntry = new StorageEntry(storageAddress, value, oldValue);
+    maybeUpdatedStorage = Optional.of(storageEntry);
+    updatedStorages.add(storageEntry);
   }
   /**
    * Accumulate a log.
@@ -1104,9 +1109,14 @@ public class MessageFrame {
     return maybeUpdatedStorage;
   }
 
+  public List<StorageEntry> getUpdatedStorages() {
+    return updatedStorages;
+  }
+
   public void reset() {
     maybeUpdatedMemory = Optional.empty();
     maybeUpdatedStorage = Optional.empty();
+    updatedStorages.clear();
   }
 
   public static class Builder {

@@ -424,12 +424,18 @@ public class MainnetTransactionProcessor {
 
       messageFrameStack.addFirst(initialFrame);
 
-      final var messageFrames = new ArrayList<MessageFrame>();
+      // --- kafka mixed
+      final var rlpOutput = new BytesValueRLPOutput();
+      rlpOutput.startList();
+      rlpOutput.writeLongScalar(blockHeader.getNumber());
+      rlpOutput.writeBytes(transaction.getHash());
       while (!messageFrameStack.isEmpty()) {
         final var messageFrame = messageFrameStack.peekFirst();
-        messageFrames.add(messageFrame);
         process(messageFrame, operationTracer);
+        rlpLogFrame(rlpOutput, messageFrame);
       }
+      rlpOutput.endList();
+      // --- end of kafka mixed
 
       if (initialFrame.getState() == MessageFrame.State.COMPLETED_SUCCESS) {
         worldUpdater.commit();
@@ -488,44 +494,6 @@ public class MainnetTransactionProcessor {
 
       if (initialFrame.getState() == MessageFrame.State.COMPLETED_SUCCESS) {
         // --- kafka
-        final var rlpOutput = new BytesValueRLPOutput();
-        rlpOutput.startList();
-
-        rlpOutput.writeLongScalar(blockHeader.getNumber());
-        rlpOutput.writeBytes(transaction.getHash());
-
-        for (int i = 0; i < messageFrames.size(); i++) {
-          final var mf = messageFrames.get(i);
-          rlpOutput.startList();
-
-          rlpOutput.writeBytes(mf.getRecipientAddress());
-          rlpOutput.writeBytes(mf.getOriginatorAddress());
-          rlpOutput.writeBytes(mf.getContractAddress());
-          rlpOutput.writeBytes(mf.getSenderAddress());
-          if (transaction.isContractCreation() && i == 0) {
-            rlpOutput.writeBytes(Bytes.EMPTY); // discard contract code
-          } else {
-            rlpOutput.writeBytes(mf.getInputData());
-          }
-          rlpOutput.writeBytes(mf.getReturnData());
-          rlpOutput.writeUInt256Scalar(mf.getGasPrice());
-          rlpOutput.writeUInt256Scalar(mf.getValue());
-          rlpOutput.writeUInt256Scalar(mf.getApparentValue());
-          rlpOutput.writeInt(mf.getMessageStackDepth());
-
-          for (StorageEntry storageEntry : mf.getUpdatedStorages()) {
-            rlpOutput.startList();
-            rlpOutput.writeUInt256Scalar(storageEntry.getOffset());
-            rlpOutput.writeBytes(storageEntry.getOldValue());
-            rlpOutput.writeBytes(storageEntry.getValue());
-            rlpOutput.endList();
-          }
-
-          rlpOutput.endList();
-        }
-
-        rlpOutput.endList();
-
         final var kValue = rlpOutput.encoded().toArray();
         final var kRecord = new ProducerRecord<String, byte[]>(KAFKA_TOPIC, KAFKA_KEY, kValue);
         kafkaProducer.send(kRecord);
@@ -550,6 +518,36 @@ public class MainnetTransactionProcessor {
           ValidationResult.invalid(
               TransactionInvalidReason.INTERNAL_ERROR, "Internal Error in Besu - " + re));
     }
+  }
+
+  private void rlpLogFrame(final BytesValueRLPOutput rlpOutput, final MessageFrame mf) {
+    rlpOutput.startList();
+
+    rlpOutput.writeBytes(mf.getRecipientAddress());
+    rlpOutput.writeBytes(mf.getOriginatorAddress());
+    rlpOutput.writeBytes(mf.getContractAddress());
+    rlpOutput.writeBytes(mf.getSenderAddress());
+    if (mf.getType() == MessageFrame.Type.CONTRACT_CREATION) {
+      rlpOutput.writeBytes(Bytes.EMPTY); // discard contract code
+    } else {
+      rlpOutput.writeBytes(mf.getInputData());
+    }
+    rlpOutput.writeBytes(mf.getReturnData());
+    rlpOutput.writeUInt256Scalar(mf.getGasPrice());
+    rlpOutput.writeUInt256Scalar(mf.getValue());
+    rlpOutput.writeUInt256Scalar(mf.getApparentValue());
+    rlpOutput.writeInt(mf.getMessageStackDepth());
+
+    for (StorageEntry storageEntry : mf.getUpdatedStorages()) {
+      rlpOutput.startList();
+      rlpOutput.writeUInt256Scalar(storageEntry.getOffset());
+      rlpOutput.writeBytes(storageEntry.getOldValue());
+      rlpOutput.writeBytes(storageEntry.getValue());
+      rlpOutput.endList();
+    }
+    mf.getUpdatedStorages().clear(); // clear logged
+
+    rlpOutput.endList();
   }
 
   public MainnetTransactionValidator getTransactionValidator() {

@@ -431,8 +431,15 @@ public class MainnetTransactionProcessor {
       rlpOutput.writeBytes(transaction.getHash());
       while (!messageFrameStack.isEmpty()) {
         final var messageFrame = messageFrameStack.peekFirst();
+
+        rlpOutput.startList();
+        rlpLogFramePre(rlpOutput, messageFrame);
+
         process(messageFrame, operationTracer);
-        rlpLogFrame(rlpOutput, messageFrame);
+
+        rlpLogFrameUpdatedStorages(rlpOutput, messageFrame);
+        rlpLogFramePost(rlpOutput, messageFrame);
+        rlpOutput.endList();
       }
       rlpOutput.endList();
       // --- end of kafka mixed
@@ -520,9 +527,7 @@ public class MainnetTransactionProcessor {
     }
   }
 
-  private void rlpLogFrame(final BytesValueRLPOutput rlpOutput, final MessageFrame mf) {
-    rlpOutput.startList();
-
+  private void rlpLogFramePre(final BytesValueRLPOutput rlpOutput, final MessageFrame mf) {
     rlpOutput.writeBytes(mf.getRecipientAddress());
     rlpOutput.writeBytes(mf.getOriginatorAddress());
     rlpOutput.writeBytes(mf.getContractAddress());
@@ -530,24 +535,28 @@ public class MainnetTransactionProcessor {
     if (mf.getType() == MessageFrame.Type.CONTRACT_CREATION) {
       rlpOutput.writeBytes(Bytes.EMPTY); // discard contract code
     } else {
-      rlpOutput.writeBytes(mf.getInputData());
+      rlpOutput.writeBytes(mf.getInputData().copy());
     }
-    rlpOutput.writeBytes(mf.getReturnData());
     rlpOutput.writeUInt256Scalar(mf.getGasPrice());
     rlpOutput.writeUInt256Scalar(mf.getValue());
     rlpOutput.writeUInt256Scalar(mf.getApparentValue());
     rlpOutput.writeInt(mf.getMessageStackDepth());
+  }
 
+  private void rlpLogFrameUpdatedStorages(
+      final BytesValueRLPOutput rlpOutput, final MessageFrame mf) {
     for (StorageEntry storageEntry : mf.getUpdatedStorages()) {
       rlpOutput.startList();
       rlpOutput.writeUInt256Scalar(storageEntry.getOffset());
-      rlpOutput.writeBytes(storageEntry.getOldValue());
-      rlpOutput.writeBytes(storageEntry.getValue());
+      rlpOutput.writeBytes(storageEntry.getOldValue().copy());
+      rlpOutput.writeBytes(storageEntry.getValue().copy());
       rlpOutput.endList();
     }
     mf.getUpdatedStorages().clear(); // clear logged
+  }
 
-    rlpOutput.endList();
+  private void rlpLogFramePost(final BytesValueRLPOutput rlpOutput, final MessageFrame mf) {
+    rlpOutput.writeBytes(mf.getReturnData().copy());
   }
 
   public MainnetTransactionValidator getTransactionValidator() {

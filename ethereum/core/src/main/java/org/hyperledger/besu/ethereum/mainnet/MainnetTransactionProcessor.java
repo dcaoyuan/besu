@@ -50,6 +50,7 @@ import org.hyperledger.besu.evm.worldstate.WorldUpdater;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -425,6 +426,8 @@ public class MainnetTransactionProcessor {
       messageFrameStack.addFirst(initialFrame);
 
       // --- kafka mixed
+      var nextId = 0;
+      final var frameIds = new HashMap<MessageFrame, Integer>();
       final var rlpOutput = new BytesValueRLPOutput();
       rlpOutput.startList();
       rlpOutput.writeLongScalar(blockHeader.getNumber());
@@ -432,8 +435,26 @@ public class MainnetTransactionProcessor {
       while (!messageFrameStack.isEmpty()) {
         final var messageFrame = messageFrameStack.peekFirst();
 
+        boolean frameVisited;
+        var id = frameIds.get(messageFrame);
+        if (id == null) {
+          frameVisited = false;
+          frameIds.put(messageFrame, nextId);
+          id = nextId;
+          nextId++;
+        } else {
+          frameVisited = true;
+        }
+
         rlpOutput.startList();
-        rlpLogFramePre(rlpOutput, messageFrame);
+        rlpOutput.writeInt(id);
+
+        if (frameVisited) {
+          rlpOutput.writeByte((byte) 1);
+        } else {
+          rlpOutput.writeByte((byte) 0);
+          rlpLogFramePre(rlpOutput, messageFrame);
+        }
 
         process(messageFrame, operationTracer);
 

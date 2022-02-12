@@ -94,7 +94,7 @@ public class MainnetTransactionProcessor {
    * $ bin/kafka-topics.sh --create --bootstrap-server localhost:9092 --topic eth-txs --config compression.type=gzip --replication-factor 1 --partitions 1
    *
    * Without compression, kafak logs 4G+/Day, 1.4T+/Year
-   * With gzip compression, logs about 700M/Day, 250G/Year
+   * With gzip compression, logs about 640M/Day, 230G/Year
    */
   private static final String KAFKA_TOPIC = "eth-txs";
   private static final String KAFKA_KEY = "eth";
@@ -581,9 +581,9 @@ public class MainnetTransactionProcessor {
   }
 
   private void rlpLogFramePost(final BytesValueRLPOutput rlpOutput, final MessageFrame mf) {
-    if (mf.getSealedReturnData().isPresent()) {
+    if (mf.getSealedOutputData().isPresent()) {
       rlpOutput.writeByte((byte) 1);
-      rlpOutput.writeBytes(mf.getSealedReturnData().get());
+      rlpOutput.writeBytes(mf.getSealedOutputData().get());
     } else {
       rlpOutput.writeByte((byte) 0);
     }

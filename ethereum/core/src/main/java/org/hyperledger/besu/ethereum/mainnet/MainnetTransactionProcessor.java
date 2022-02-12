@@ -566,6 +566,9 @@ public class MainnetTransactionProcessor {
 
   private void rlpLogFrameUpdatedStorages(
       final BytesValueRLPOutput rlpOutput, final MessageFrame mf) {
+    final var n = mf.getUpdatedStorages().size();
+
+    rlpOutput.writeInt(n);
     for (StorageEntry storageEntry : mf.getUpdatedStorages()) {
       rlpOutput.startList();
       rlpOutput.writeUInt256Scalar(storageEntry.getOffset());
@@ -573,11 +576,17 @@ public class MainnetTransactionProcessor {
       rlpOutput.writeBytes(storageEntry.getValue().copy());
       rlpOutput.endList();
     }
+
     mf.getUpdatedStorages().clear(); // clear logged
   }
 
   private void rlpLogFramePost(final BytesValueRLPOutput rlpOutput, final MessageFrame mf) {
-    rlpOutput.writeBytes(mf.getReturnData().copy());
+    if (mf.getSealedReturnData().isPresent()) {
+      rlpOutput.writeByte((byte) 1);
+      rlpOutput.writeBytes(mf.getSealedReturnData().get());
+    } else {
+      rlpOutput.writeByte((byte) 0);
+    }
   }
 
   public MainnetTransactionValidator getTransactionValidator() {

@@ -244,6 +244,7 @@ public class MessageFrame {
   private Optional<StorageEntry> maybeUpdatedStorage = Optional.empty();
 
   private final List<StorageEntry> updatedStorages = new ArrayList<>();
+  private Optional<Bytes> sealedReturnData = Optional.empty();
 
   public static Builder builder() {
     return new Builder();
@@ -426,11 +427,17 @@ public class MessageFrame {
    */
   public void setReturnData(final Bytes returnData) {
     this.returnData = returnData;
+    this.sealedReturnData = Optional.of(returnData.copy());
   }
 
   /** Clear the return data buffer. */
   public void clearReturnData() {
     setReturnData(Bytes.EMPTY);
+    this.sealedReturnData = Optional.empty();
+  }
+
+  public Optional<Bytes> getSealedReturnData() {
+    return this.sealedReturnData;
   }
 
   /**
@@ -730,6 +737,7 @@ public class MessageFrame {
     maybeUpdatedStorage = Optional.of(storageEntry);
     updatedStorages.add(storageEntry);
   }
+
   /**
    * Accumulate a log.
    *

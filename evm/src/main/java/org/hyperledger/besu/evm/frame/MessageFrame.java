@@ -25,7 +25,9 @@ import org.hyperledger.besu.evm.Gas;
 import org.hyperledger.besu.evm.internal.FixedStack.UnderflowException;
 import org.hyperledger.besu.evm.internal.MemoryEntry;
 import org.hyperledger.besu.evm.internal.OperandStack;
+import org.hyperledger.besu.evm.internal.SHA3Call;
 import org.hyperledger.besu.evm.internal.StorageEntry;
+import org.hyperledger.besu.evm.internal.StorageUpdate;
 import org.hyperledger.besu.evm.log.Log;
 import org.hyperledger.besu.evm.operation.Operation;
 import org.hyperledger.besu.evm.worldstate.WorldUpdater;
@@ -243,7 +245,8 @@ public class MessageFrame {
   private Optional<MemoryEntry> maybeUpdatedMemory = Optional.empty();
   private Optional<StorageEntry> maybeUpdatedStorage = Optional.empty();
 
-  private final List<StorageEntry> updatedStorages = new ArrayList<>();
+  private final List<StorageUpdate> storageUpdates = new ArrayList<>();
+  private final Set<SHA3Call> sha3Calls = new HashSet<>();
   private Optional<Bytes> sealedOutputData = Optional.empty();
 
   public static Builder builder() {
@@ -733,9 +736,12 @@ public class MessageFrame {
 
   public void storageWasUpdated(
       final UInt256 storageAddress, final Bytes value, final Bytes oldValue) {
-    final var storageEntry = new StorageEntry(storageAddress, value, oldValue);
-    maybeUpdatedStorage = Optional.of(storageEntry);
-    updatedStorages.add(storageEntry);
+    maybeUpdatedStorage = Optional.of(new StorageEntry(storageAddress, value));
+    storageUpdates.add(new StorageUpdate(storageAddress, oldValue.copy(), value.copy()));
+  }
+
+  public void sha3Called(final Bytes in, final Bytes out) {
+    sha3Calls.add(new SHA3Call(in.copy(), out.copy()));
   }
 
   /**
@@ -1117,14 +1123,19 @@ public class MessageFrame {
     return maybeUpdatedStorage;
   }
 
-  public List<StorageEntry> getUpdatedStorages() {
-    return updatedStorages;
+  public List<StorageUpdate> getStorageUpdates() {
+    return storageUpdates;
+  }
+
+  public Set<SHA3Call> getSha3Calls() {
+    return sha3Calls;
   }
 
   public void reset() {
     maybeUpdatedMemory = Optional.empty();
     maybeUpdatedStorage = Optional.empty();
-    updatedStorages.clear();
+    storageUpdates.clear();
+    sha3Calls.clear();
   }
 
   public static class Builder {

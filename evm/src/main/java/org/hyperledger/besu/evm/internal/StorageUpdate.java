@@ -18,20 +18,31 @@ package org.hyperledger.besu.evm.internal;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.units.bigints.UInt256;
 
-public class StorageEntry {
+/**
+ * Record to be Kafka logged relative to storage access.
+ *
+ * @author dcaoyuan
+ */
+public class StorageUpdate {
   private final UInt256 offset;
-  private final Bytes value;
+  private final Bytes oldValue;
+  private final Bytes newValue;
 
-  public StorageEntry(final UInt256 offset, final Bytes value) {
+  public StorageUpdate(final UInt256 offset, final Bytes oldValue, final Bytes newValue) {
     this.offset = offset;
-    this.value = value;
+    this.oldValue = oldValue;
+    this.newValue = newValue;
   }
 
   public UInt256 getOffset() {
     return offset;
   }
 
-  public Bytes getValue() {
-    return value;
+  public Bytes getNewValue() {
+    return newValue;
+  }
+
+  public Bytes getOldValue() {
+    return oldValue;
   }
 }

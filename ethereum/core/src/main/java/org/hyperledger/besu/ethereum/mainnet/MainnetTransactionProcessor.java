@@ -42,7 +42,8 @@ import org.hyperledger.besu.evm.account.EvmAccount;
 import org.hyperledger.besu.evm.account.MutableAccount;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
-import org.hyperledger.besu.evm.internal.StorageEntry;
+import org.hyperledger.besu.evm.internal.SHA3Call;
+import org.hyperledger.besu.evm.internal.StorageUpdate;
 import org.hyperledger.besu.evm.processor.AbstractMessageProcessor;
 import org.hyperledger.besu.evm.tracing.OperationTracer;
 import org.hyperledger.besu.evm.worldstate.WorldUpdater;
@@ -94,7 +95,7 @@ public class MainnetTransactionProcessor {
    * $ bin/kafka-topics.sh --create --bootstrap-server localhost:9092 --topic eth-txs --config compression.type=gzip --replication-factor 1 --partitions 1
    *
    * Without compression, kafak logs 4G+/Day, 1.4T+/Year
-   * With gzip compression, logs about 640M/Day, 230G/Year
+   * With gzip compression, logs about 852M/Day, 304G/Year
    */
   private static final String KAFKA_TOPIC = "eth-txs";
   private static final String KAFKA_KEY = "eth";
@@ -435,21 +436,21 @@ public class MainnetTransactionProcessor {
       while (!messageFrameStack.isEmpty()) {
         final var messageFrame = messageFrameStack.peekFirst();
 
-        boolean frameVisited;
+        boolean isFrameVisited;
         var id = frameIds.get(messageFrame);
         if (id == null) {
-          frameVisited = false;
+          isFrameVisited = false;
           frameIds.put(messageFrame, nextId);
           id = nextId;
           nextId++;
         } else {
-          frameVisited = true;
+          isFrameVisited = true;
         }
 
         rlpOutput.startList();
         rlpOutput.writeInt(id);
 
-        if (frameVisited) {
+        if (isFrameVisited) {
           rlpOutput.writeByte((byte) 1);
         } else {
           rlpOutput.writeByte((byte) 0);
@@ -566,18 +567,31 @@ public class MainnetTransactionProcessor {
 
   private void rlpLogFrameUpdatedStorages(
       final BytesValueRLPOutput rlpOutput, final MessageFrame mf) {
-    final var n = mf.getUpdatedStorages().size();
 
+    final var n = mf.getSha3Calls().size();
     rlpOutput.writeInt(n);
-    for (StorageEntry storageEntry : mf.getUpdatedStorages()) {
+    for (SHA3Call sha3Call : mf.getSha3Calls()) {
       rlpOutput.startList();
-      rlpOutput.writeUInt256Scalar(storageEntry.getOffset());
-      rlpOutput.writeBytes(storageEntry.getOldValue().copy());
-      rlpOutput.writeBytes(storageEntry.getValue().copy());
+
+      rlpOutput.writeBytes(sha3Call.getIn());
+      rlpOutput.writeBytes(sha3Call.getOut());
+
       rlpOutput.endList();
     }
+    mf.getSha3Calls().clear(); // clear logged
 
-    mf.getUpdatedStorages().clear(); // clear logged
+    final var m = mf.getStorageUpdates().size();
+    rlpOutput.writeInt(m);
+    for (StorageUpdate update : mf.getStorageUpdates()) {
+      rlpOutput.startList();
+
+      rlpOutput.writeUInt256Scalar(update.getOffset());
+      rlpOutput.writeBytes(update.getOldValue());
+      rlpOutput.writeBytes(update.getNewValue());
+
+      rlpOutput.endList();
+    }
+    mf.getStorageUpdates().clear(); // clear logged
   }
 
   private void rlpLogFramePost(final BytesValueRLPOutput rlpOutput, final MessageFrame mf) {

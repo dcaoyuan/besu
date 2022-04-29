@@ -432,6 +432,7 @@ public class MainnetTransactionProcessor {
       final var rlpOutput = new BytesValueRLPOutput();
       rlpOutput.startList();
       rlpOutput.writeLongScalar(blockHeader.getNumber());
+      rlpOutput.writeLongScalar(blockHeader.getTimestamp());
       rlpOutput.writeBytes(transaction.getHash());
       while (!messageFrameStack.isEmpty()) {
         final var messageFrame = messageFrameStack.peekFirst();

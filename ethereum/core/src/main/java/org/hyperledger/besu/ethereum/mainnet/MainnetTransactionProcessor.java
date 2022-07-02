@@ -102,7 +102,7 @@ public class MainnetTransactionProcessor {
   private final Properties kafkaProps = new Properties();
 
   {
-    kafkaProps.put("bootstrap.servers", "10.95.229.100:9092");
+    kafkaProps.put("bootstrap.servers", "192.168.1.101:9092");
     kafkaProps.put("acks", "all");
     kafkaProps.put("retries", 0);
     kafkaProps.put("linger.ms", 1);

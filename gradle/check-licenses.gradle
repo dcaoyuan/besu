@@ -31,6 +31,7 @@
  */
 ext.acceptedLicenses = [
   'Apache License, Version 2.0',
+  'BSD 2-Clause License',
   'BSD 3-Clause',
   'BSD License',
   'Bouncy Castle Licence',

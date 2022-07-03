@@ -24,7 +24,9 @@ import org.hyperledger.besu.evm.Code;
 import org.hyperledger.besu.evm.internal.FixedStack.UnderflowException;
 import org.hyperledger.besu.evm.internal.MemoryEntry;
 import org.hyperledger.besu.evm.internal.OperandStack;
+import org.hyperledger.besu.evm.internal.SHA3Call;
 import org.hyperledger.besu.evm.internal.StorageEntry;
+import org.hyperledger.besu.evm.internal.StorageUpdate;
 import org.hyperledger.besu.evm.log.Log;
 import org.hyperledger.besu.evm.operation.Operation;
 import org.hyperledger.besu.evm.worldstate.WorldUpdater;
@@ -241,6 +243,10 @@ public class MessageFrame {
   private Optional<MemoryEntry> maybeUpdatedMemory = Optional.empty();
   private Optional<StorageEntry> maybeUpdatedStorage = Optional.empty();
 
+  private final List<StorageUpdate> storageUpdates = new ArrayList<>();
+  private final Set<SHA3Call> sha3Calls = new HashSet<>();
+  private Optional<Bytes> sealedOutputData = Optional.empty();
+
   public static Builder builder() {
     return new Builder();
   }
@@ -399,11 +405,17 @@ public class MessageFrame {
    */
   public void setOutputData(final Bytes output) {
     this.output = output;
+    this.sealedOutputData = Optional.of(output.copy());
   }
 
   /** Clears the output data buffer. */
   public void clearOutputData() {
     setOutputData(Bytes.EMPTY);
+    this.sealedOutputData = Optional.of(Bytes.EMPTY);
+  }
+
+  public Optional<Bytes> getSealedOutputData() {
+    return this.sealedOutputData;
   }
 
   /**
@@ -720,9 +732,16 @@ public class MessageFrame {
     maybeUpdatedMemory = Optional.of(new MemoryEntry(offset, value));
   }
 
-  public void storageWasUpdated(final UInt256 storageAddress, final Bytes value) {
+  public void storageWasUpdated(
+      final UInt256 storageAddress, final Bytes value, final Bytes oldValue) {
     maybeUpdatedStorage = Optional.of(new StorageEntry(storageAddress, value));
+    storageUpdates.add(new StorageUpdate(storageAddress, oldValue.copy(), value.copy()));
   }
+
+  public void sha3Called(final Bytes in, final Bytes out) {
+    sha3Calls.add(new SHA3Call(in.copy(), out.copy()));
+  }
+
   /**
    * Accumulate a log.
    *
@@ -1094,9 +1113,19 @@ public class MessageFrame {
     return maybeUpdatedStorage;
   }
 
+  public List<StorageUpdate> getStorageUpdates() {
+    return storageUpdates;
+  }
+
+  public Set<SHA3Call> getSha3Calls() {
+    return sha3Calls;
+  }
+
   public void reset() {
     maybeUpdatedMemory = Optional.empty();
     maybeUpdatedStorage = Optional.empty();
+    storageUpdates.clear();
+    sha3Calls.clear();
   }
 
   public static class Builder {

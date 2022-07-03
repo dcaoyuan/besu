@@ -80,8 +80,9 @@ public class SStoreOperation extends AbstractOperation {
     // Increment the refund counter.
     frame.incrementGasRefund(gasCalculator().calculateStorageRefundAmount(account, key, value));
 
+    final var oldValue = account.getStorageValue(key);
     account.setStorageValue(key, value);
-    frame.storageWasUpdated(key, value);
+    frame.storageWasUpdated(key, value, oldValue);
     return new OperationResult(OptionalLong.of(cost), Optional.empty());
   }
 }

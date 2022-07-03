@@ -20,7 +20,7 @@ import net.ltgt.gradle.errorprone.CheckSeverity
 import java.text.SimpleDateFormat
 
 plugins {
-  id 'com.diffplug.spotless' version '5.16.0'
+  id 'com.diffplug.spotless' version '6.5.1'
   id 'com.github.ben-manes.versions' version '0.42.0'
   id 'com.github.hierynomus.license' version '0.16.1-fix'
   id 'com.jfrog.artifactory' version '4.27.1'
@@ -132,7 +132,7 @@ allprojects {
       target '**/*.java'
       targetExclude '**/src/reference-test/**', '**/src/main/generated/**', '**/src/test/generated/**', '**/src/jmh/generated/**'
       removeUnusedImports()
-      googleJavaFormat('1.10.0')
+      googleJavaFormat('1.13.0') // 1.15.0 may get java.lang.NoSuchMethodError: 'com.google.common.collect.ImmutableMap com.google.common.collect.ImmutableMap$Builder.buildOrThrow()'
       importOrder 'org.hyperledger', 'java', ''
       trimTrailingWhitespace()
       endWithNewline()

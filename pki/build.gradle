@@ -48,4 +48,18 @@ task testJar(type: Jar) {
   from sourceSets.test.output
 }
 
-artifacts { testArtifacts testJar }
+artifacts {
+  testArtifacts testJar
+}
+
+test {
+  // This test seems using old NSS certificate/key database format:
+  //   src/test/resources/keystore/partner1client1/nssdb,
+  // which is not supported after Fedora 33. You can verify it by:
+  //   $ certutil -L -d nssdb
+  //   certutil: function failed: SEC_ERROR_LEGACY_DATABASE: The certificate/key database is in an old, unsupported format.
+  // https://fedoraproject.org/wiki/Changes/NSSDBMRemoval
+  // To repeat, comment 'exclude' rule and:
+  //   ./gradlew :pki:test --tests org.hyperledger.besu.pki.keystore.HardwareKeyStoreFileWrapperTest --info
+  exclude 'org/hyperledger/besu/pki/keystore/HardwareKeyStoreFileWrapperTest.class'
+}

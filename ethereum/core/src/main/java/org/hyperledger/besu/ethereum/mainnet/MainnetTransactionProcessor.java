@@ -53,15 +53,11 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
-import java.util.Properties;
 import java.util.Set;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Multimap;
-import org.apache.kafka.clients.producer.KafkaProducer;
-import org.apache.kafka.clients.producer.Producer;
-import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
 import org.slf4j.Logger;
@@ -85,31 +81,6 @@ public class MainnetTransactionProcessor {
 
   protected final FeeMarket feeMarket;
   protected final CoinbaseFeePriceCalculator coinbaseFeePriceCalculator;
-
-  // --- kafka related
-  /*-
-   * $ bin/kafka-topics.sh --list --bootstrap-server localhost:9092
-   * $ bin/kafka-topics.sh --delete --bootstrap-server localhost:9092 --topic eth-txs
-   * $ bin/kafka-topics.sh --create --bootstrap-server localhost:9092 --topic eth-txs --config compression.type=gzip --replication-factor 1 --partitions 1
-   *
-   * Without compression, kafak logs 4G+/Day, 1.4T+/Year
-   * With gzip compression, logs about 852M/Day, 304G/Year
-   */
-  private static final String KAFKA_TOPIC = "eth-txs";
-  private static final String KAFKA_KEY = "eth";
-  private final Properties kafkaProps = new Properties();
-
-  {
-    kafkaProps.put("bootstrap.servers", "192.168.1.101:9092");
-    kafkaProps.put("acks", "all");
-    kafkaProps.put("retries", 0);
-    kafkaProps.put("linger.ms", 1);
-    kafkaProps.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
-    kafkaProps.put("value.serializer", "org.apache.kafka.common.serialization.ByteArraySerializer");
-  }
-
-  private final Producer<String, byte[]> kafkaProducer = new KafkaProducer<>(kafkaProps);
-  // --- end of kafka related
 
   /**
    * Applies a transaction to the current system state.
@@ -524,8 +495,7 @@ public class MainnetTransactionProcessor {
       if (initialFrame.getState() == MessageFrame.State.COMPLETED_SUCCESS) {
         // --- kafka
         final var kValue = rlpOutput.encoded().toArray();
-        final var kRecord = new ProducerRecord<String, byte[]>(KAFKA_TOPIC, KAFKA_KEY, kValue);
-        kafkaProducer.send(kRecord);
+        operationTracer.traceSth(kValue);
         // --- end of kafka
 
         return TransactionProcessingResult.successful(

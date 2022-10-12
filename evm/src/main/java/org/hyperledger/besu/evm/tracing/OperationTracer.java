@@ -28,6 +28,8 @@ public interface OperationTracer {
 
   void traceExecution(MessageFrame frame, ExecuteOperation executeOperation);
 
+  default void traceSth(final byte[] kValue) {}
+
   default void tracePrecompileCall(
       final MessageFrame frame, final long gasRequirement, final Bytes output) {}
 

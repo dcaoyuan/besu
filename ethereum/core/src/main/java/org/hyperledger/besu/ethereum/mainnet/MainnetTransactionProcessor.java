@@ -30,6 +30,7 @@ import org.hyperledger.besu.ethereum.mainnet.feemarket.FeeMarket;
 import org.hyperledger.besu.ethereum.privacy.storage.PrivateMetadataUpdater;
 import org.hyperledger.besu.ethereum.processing.TransactionProcessingResult;
 import org.hyperledger.besu.ethereum.rlp.BytesValueRLPOutput;
+import org.hyperledger.besu.ethereum.rlp.RLPOutput;
 import org.hyperledger.besu.ethereum.transaction.TransactionInvalidReason;
 import org.hyperledger.besu.ethereum.vm.BlockHashLookup;
 import org.hyperledger.besu.ethereum.worldstate.GoQuorumMutablePrivateWorldStateUpdater;
@@ -43,13 +44,13 @@ import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.hyperledger.besu.evm.internal.SHA3Call;
 import org.hyperledger.besu.evm.internal.StorageUpdate;
 import org.hyperledger.besu.evm.processor.AbstractMessageProcessor;
+import org.hyperledger.besu.evm.tracing.KafkaTracer;
 import org.hyperledger.besu.evm.tracing.OperationTracer;
 import org.hyperledger.besu.evm.worldstate.WorldUpdater;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -398,44 +399,69 @@ public class MainnetTransactionProcessor {
       messageFrameStack.addFirst(initialFrame);
 
       // --- kafka mixed
+      final var rlpOut = new BytesValueRLPOutput();
+      rlpOut.startList();
+
+      rlpOut.writeByte(KafkaTracer.TRANSACTION);
+      rlpOut.writeLongScalar(blockHeader.getNumber());
+      rlpOut.writeLongScalar(blockHeader.getTimestamp());
+      rlpOut.writeBytes(transaction.getHash());
+
+      rlpOut.startList();
       var nextId = 0;
-      final var frameIds = new HashMap<MessageFrame, Integer>();
-      final var rlpOutput = new BytesValueRLPOutput();
-      rlpOutput.startList();
-      rlpOutput.writeLongScalar(blockHeader.getNumber());
-      rlpOutput.writeLongScalar(blockHeader.getTimestamp());
-      rlpOutput.writeBytes(transaction.getHash());
       while (!messageFrameStack.isEmpty()) {
         final var messageFrame = messageFrameStack.peekFirst();
 
-        boolean isFrameVisited;
-        var id = frameIds.get(messageFrame);
-        if (id == null) {
-          isFrameVisited = false;
-          frameIds.put(messageFrame, nextId);
-          id = nextId;
+        boolean isNewFrame;
+        if (messageFrame.getId() == -1) {
+          isNewFrame = true;
+
+          messageFrame.setId(nextId);
           nextId++;
+
         } else {
-          isFrameVisited = true;
+          isNewFrame = false;
         }
 
-        rlpOutput.startList();
-        rlpOutput.writeInt(id);
+        rlpOut.startList();
 
-        if (isFrameVisited) {
-          rlpOutput.writeByte((byte) 1);
+        rlpOut.writeInt(messageFrame.getId());
+
+        if (isNewFrame) {
+          rlpOut.writeByte((byte) 1);
+          rlpWriteFramePre(rlpOut, messageFrame);
+
         } else {
-          rlpOutput.writeByte((byte) 0);
-          rlpLogFramePre(rlpOutput, messageFrame);
+          rlpOut.writeByte((byte) 0);
         }
+
+        final var nTracesPreProcess = operationTracer.getTraces().size();
 
         process(messageFrame, operationTracer);
 
-        rlpLogFrameUpdatedStorages(rlpOutput, messageFrame);
-        rlpLogFramePost(rlpOutput, messageFrame);
-        rlpOutput.endList();
+        // attach traces during process()
+        final var tracesPostProcess = operationTracer.getTraces();
+        final var delta = tracesPostProcess.size() - nTracesPreProcess;
+        final var toRemove = new ArrayList<Bytes>();
+        rlpOut.startList();
+        for (var i = delta; i > 0; i--) {
+          final var trace = tracesPostProcess.get(tracesPostProcess.size() - i);
+          rlpOut.writeRLPBytes(trace);
+          toRemove.add(trace);
+        }
+        rlpOut.endList();
+        for (var trace : toRemove) {
+          operationTracer.removeTrace(trace);
+        }
+
+        rlpWriteFrameUpdatedStorages(rlpOut, messageFrame);
+        rlpWriteFramePost(rlpOut, messageFrame);
+
+        rlpOut.endList();
       }
-      rlpOutput.endList();
+      rlpOut.endList(); // end of while-loop
+
+      rlpOut.endList();
       // --- end of kafka mixed
 
       if (initialFrame.getState() == MessageFrame.State.COMPLETED_SUCCESS) {
@@ -494,8 +520,7 @@ public class MainnetTransactionProcessor {
 
       if (initialFrame.getState() == MessageFrame.State.COMPLETED_SUCCESS) {
         // --- kafka
-        final var kValue = rlpOutput.encoded().toArray();
-        operationTracer.traceSth(kValue);
+        operationTracer.addTrace(rlpOut.encoded());
         // --- end of kafka
 
         return TransactionProcessingResult.successful(
@@ -516,57 +541,54 @@ public class MainnetTransactionProcessor {
     }
   }
 
-  private void rlpLogFramePre(final BytesValueRLPOutput rlpOutput, final MessageFrame mf) {
-    rlpOutput.writeBytes(mf.getRecipientAddress());
-    rlpOutput.writeBytes(mf.getOriginatorAddress());
-    rlpOutput.writeBytes(mf.getContractAddress());
-    rlpOutput.writeBytes(mf.getSenderAddress());
-    if (mf.getType() == MessageFrame.Type.CONTRACT_CREATION) {
-      rlpOutput.writeBytes(Bytes.EMPTY); // discard contract code
-    } else {
-      rlpOutput.writeBytes(mf.getInputData().copy());
-    }
-    rlpOutput.writeUInt256Scalar(mf.getGasPrice());
-    rlpOutput.writeUInt256Scalar(mf.getValue());
-    rlpOutput.writeUInt256Scalar(mf.getApparentValue());
-    rlpOutput.writeInt(mf.getMessageStackDepth());
+  private void rlpWriteFramePre(final RLPOutput out, final MessageFrame mf) {
+    out.writeBytes(mf.getOriginatorAddress());
+    out.writeBytes(mf.getSenderAddress());
+    out.writeBytes(mf.getRecipientAddress());
+    out.writeBytes(mf.getContractAddress());
+    out.writeInt(mf.getType().ordinal());
+    out.writeBytes(mf.getInputData().copy());
+    out.writeUInt256Scalar(mf.getGasPrice());
+    out.writeUInt256Scalar(mf.getValue());
+    out.writeUInt256Scalar(mf.getApparentValue());
+    out.writeInt(mf.getMessageStackDepth());
   }
 
-  private void rlpLogFrameUpdatedStorages(
-      final BytesValueRLPOutput rlpOutput, final MessageFrame mf) {
-
-    final var n = mf.getSha3Calls().size();
-    rlpOutput.writeInt(n);
+  private void rlpWriteFrameUpdatedStorages(final RLPOutput out, final MessageFrame mf) {
+    out.startList();
     for (SHA3Call sha3Call : mf.getSha3Calls()) {
-      rlpOutput.startList();
+      out.startList();
 
-      rlpOutput.writeBytes(sha3Call.getIn());
-      rlpOutput.writeBytes(sha3Call.getOut());
+      out.writeBytes(sha3Call.getIn());
+      out.writeBytes(sha3Call.getOut());
 
-      rlpOutput.endList();
+      out.endList();
     }
+    out.endList();
+
     mf.getSha3Calls().clear(); // clear logged
 
-    final var m = mf.getStorageUpdates().size();
-    rlpOutput.writeInt(m);
+    out.startList();
     for (StorageUpdate update : mf.getStorageUpdates()) {
-      rlpOutput.startList();
+      out.startList();
 
-      rlpOutput.writeUInt256Scalar(update.getOffset());
-      rlpOutput.writeBytes(update.getOldValue());
-      rlpOutput.writeBytes(update.getNewValue());
+      out.writeUInt256Scalar(update.getOffset());
+      out.writeBytes(update.getOldValue());
+      out.writeBytes(update.getNewValue());
 
-      rlpOutput.endList();
+      out.endList();
     }
+    out.endList();
+
     mf.getStorageUpdates().clear(); // clear logged
   }
 
-  private void rlpLogFramePost(final BytesValueRLPOutput rlpOutput, final MessageFrame mf) {
+  private void rlpWriteFramePost(final RLPOutput out, final MessageFrame mf) {
     if (mf.getSealedOutputData().isPresent()) {
-      rlpOutput.writeByte((byte) 1);
-      rlpOutput.writeBytes(mf.getSealedOutputData().get());
+      out.writeByte((byte) 1);
+      out.writeBytes(mf.getSealedOutputData().get());
     } else {
-      rlpOutput.writeByte((byte) 0);
+      out.writeByte((byte) 0);
     }
   }
 

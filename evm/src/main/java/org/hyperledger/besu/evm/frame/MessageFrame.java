@@ -246,6 +246,7 @@ public class MessageFrame {
   private final List<StorageUpdate> storageUpdates = new ArrayList<>();
   private final Set<SHA3Call> sha3Calls = new HashSet<>();
   private Optional<Bytes> sealedOutputData = Optional.empty();
+  private int id = -1;
 
   public static Builder builder() {
     return new Builder();
@@ -1118,6 +1119,14 @@ public class MessageFrame {
 
   public Set<SHA3Call> getSha3Calls() {
     return sha3Calls;
+  }
+
+  public void setId(final int id) {
+    this.id = id;
+  }
+
+  public int getId() {
+    return id;
   }
 
   public void reset() {

@@ -18,13 +18,23 @@ package org.hyperledger.besu.evm.tracing;
 
 import org.hyperledger.besu.evm.frame.MessageFrame;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Properties;
 
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.tuweni.bytes.Bytes;
 
 public class KafkaTracer implements OperationTracer {
+
+  // kafka record type
+  public static final byte BLOCK = 0;
+  public static final byte RECEIPTS = 1;
+  public static final byte REWARDS = 2;
+  public static final byte TRANSACTION = 3;
+  public static final byte TRANSFER = 10;
 
   private static KafkaTracer INSTANCE;
 
@@ -46,7 +56,7 @@ public class KafkaTracer implements OperationTracer {
      * Without compression, kafak logs 4G+/Day, 1.4T+/Year
      * With gzip compression, logs about 852M/Day, 304G/Year
      */
-    this.KAFKA_TOPIC = "eth-txs";
+    this.KAFKA_TOPIC = "eth-mainnet";
     this.KAFKA_KEY = "eth";
 
     final var kafkaProps = new Properties();
@@ -65,10 +75,35 @@ public class KafkaTracer implements OperationTracer {
 
   private final Producer<String, byte[]> kafkaProducer;
 
+  private final List<Bytes> traces = new ArrayList<>();
+
   @Override
-  public void traceSth(final byte[] kValue) {
-    final var kRecord = new ProducerRecord<String, byte[]>(KAFKA_TOPIC, KAFKA_KEY, kValue);
-    kafkaProducer.send(kRecord);
+  public void resetTraces() {
+    traces.clear();
+  }
+
+  @Override
+  public void addTrace(final Bytes bytes) {
+    traces.add(bytes);
+  }
+
+  @Override
+  public List<Bytes> getTraces() {
+    return traces;
+  }
+
+  @Override
+  public void removeTrace(final Bytes bytes) {
+    traces.remove(bytes);
+  }
+
+  @Override
+  public void commitTraces() {
+    for (var trace : traces) {
+      final var record =
+          new ProducerRecord<String, byte[]>(KAFKA_TOPIC, KAFKA_KEY, trace.toArray());
+      kafkaProducer.send(record);
+    }
   }
 
   @Override

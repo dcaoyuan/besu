@@ -21,6 +21,7 @@ import org.hyperledger.besu.ethereum.core.MutableWorldState;
 import org.hyperledger.besu.ethereum.mainnet.MainnetBlockProcessor;
 import org.hyperledger.besu.ethereum.mainnet.MainnetTransactionProcessor;
 import org.hyperledger.besu.ethereum.mainnet.MiningBeneficiaryCalculator;
+import org.hyperledger.besu.evm.tracing.OperationTracer;
 
 import java.util.List;
 import java.util.Optional;
@@ -33,6 +34,7 @@ public class MergeBlockProcessor extends MainnetBlockProcessor {
       final TransactionReceiptFactory transactionReceiptFactory,
       final Wei blockReward,
       final MiningBeneficiaryCalculator miningBeneficiaryCalculator,
+      final OperationTracer operationTracer,
       final boolean skipZeroBlockRewards,
       final Optional<GoQuorumPrivacyParameters> goQuorumPrivacyParameters) {
     super(
@@ -40,6 +42,7 @@ public class MergeBlockProcessor extends MainnetBlockProcessor {
         transactionReceiptFactory,
         blockReward,
         miningBeneficiaryCalculator,
+        operationTracer,
         skipZeroBlockRewards,
         goQuorumPrivacyParameters);
     this.mergeContext = PostMergeContext.get();

@@ -63,6 +63,7 @@ public class GoQuorumBlockProcessor extends MainnetBlockProcessor {
       final TransactionReceiptFactory transactionReceiptFactory,
       final Wei blockReward,
       final MiningBeneficiaryCalculator miningBeneficiaryCalculator,
+      final OperationTracer operationTracer,
       final boolean skipZeroBlockRewards,
       final Optional<GoQuorumPrivacyParameters> goQuorumPrivacyParameters) {
     super(
@@ -70,6 +71,7 @@ public class GoQuorumBlockProcessor extends MainnetBlockProcessor {
         transactionReceiptFactory,
         blockReward,
         miningBeneficiaryCalculator,
+        operationTracer,
         skipZeroBlockRewards,
         Optional.empty());
 

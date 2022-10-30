@@ -32,6 +32,7 @@ import org.hyperledger.besu.ethereum.mainnet.MainnetTransactionProcessor;
 import org.hyperledger.besu.ethereum.mainnet.MiningBeneficiaryCalculator;
 import org.hyperledger.besu.ethereum.mainnet.ProtocolSchedule;
 import org.hyperledger.besu.ethereum.mainnet.ProtocolSpec;
+import org.hyperledger.besu.evm.tracing.OperationTracer;
 
 import java.util.Collections;
 import java.util.List;
@@ -91,6 +92,7 @@ public class RewardTraceGeneratorTest {
             transactionReceiptFactory,
             blockReward,
             BlockHeader::getCoinbase,
+            OperationTracer.NO_TRACING,
             true,
             Optional.empty());
     when(protocolSpec.getBlockProcessor()).thenReturn(blockProcessor);
@@ -150,6 +152,7 @@ public class RewardTraceGeneratorTest {
             transactionReceiptFactory,
             blockReward,
             BlockHeader::getCoinbase,
+            OperationTracer.NO_TRACING,
             true,
             eraRounds);
     when(protocolSpec.getBlockProcessor()).thenReturn(blockProcessor);

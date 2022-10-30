@@ -40,6 +40,7 @@ public class MainnetBlockProcessor extends AbstractBlockProcessor {
       final AbstractBlockProcessor.TransactionReceiptFactory transactionReceiptFactory,
       final Wei blockReward,
       final MiningBeneficiaryCalculator miningBeneficiaryCalculator,
+      final OperationTracer operationTracer,
       final boolean skipZeroBlockRewards,
       final Optional<GoQuorumPrivacyParameters> goQuorumPrivacyParameters) {
     super(
@@ -47,6 +48,7 @@ public class MainnetBlockProcessor extends AbstractBlockProcessor {
         transactionReceiptFactory,
         blockReward,
         miningBeneficiaryCalculator,
+        operationTracer,
         skipZeroBlockRewards);
   }
 
@@ -110,16 +112,9 @@ public class MainnetBlockProcessor extends AbstractBlockProcessor {
     rlpOut.endList(); // end for-loop
 
     rlpOut.endList();
-    tracer().addTrace(rlpOut.encoded());
+    operationTracer.addTrace(rlpOut.encoded());
     // --- end of kafka
 
     return true;
-  }
-
-  private final OperationTracer tracer = KafkaTracer.getInstance();
-
-  @Override
-  public OperationTracer tracer() {
-    return tracer;
   }
 }

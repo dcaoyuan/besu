@@ -38,6 +38,7 @@ import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.hyperledger.besu.evm.internal.EvmConfiguration;
 import org.hyperledger.besu.evm.precompile.PrecompileContractRegistry;
 import org.hyperledger.besu.evm.processor.AbstractMessageProcessor;
+import org.hyperledger.besu.evm.tracing.OperationTracer;
 
 import java.util.Optional;
 import java.util.function.BiFunction;
@@ -75,6 +76,14 @@ public class ProtocolSpecBuilder {
   private FeeMarket feeMarket = FeeMarket.legacy();
   private BadBlockManager badBlockManager;
   private PoWHasher powHasher = PoWHasher.ETHASH_LIGHT;
+
+  private OperationTracer operationTracer =
+      OperationTracer.NO_TRACING; // KafkaTracer.getInstance();
+
+  public ProtocolSpecBuilder operationTracer(final OperationTracer operationTracer) {
+    this.operationTracer = operationTracer;
+    return this;
+  }
 
   public ProtocolSpecBuilder gasCalculator(final Supplier<GasCalculator> gasCalculatorBuilder) {
     this.gasCalculatorBuilder = gasCalculatorBuilder;
@@ -306,6 +315,7 @@ public class ProtocolSpecBuilder {
             transactionReceiptFactory,
             blockReward,
             miningBeneficiaryCalculator,
+            operationTracer,
             skipZeroBlockRewards,
             privacyParameters.getGoQuorumPrivacyParameters());
     // Set private Tx Processor
@@ -407,6 +417,7 @@ public class ProtocolSpecBuilder {
         AbstractBlockProcessor.TransactionReceiptFactory transactionReceiptFactory,
         Wei blockReward,
         MiningBeneficiaryCalculator miningBeneficiaryCalculator,
+        OperationTracer operationTracer,
         boolean skipZeroBlockRewards,
         Optional<GoQuorumPrivacyParameters> goQuorumPrivacyParameters);
   }

@@ -145,16 +145,20 @@ public abstract class AbstractBlockProcessor implements BlockProcessor {
 
   protected final MiningBeneficiaryCalculator miningBeneficiaryCalculator;
 
+  protected final OperationTracer operationTracer;
+
   protected AbstractBlockProcessor(
       final MainnetTransactionProcessor transactionProcessor,
       final TransactionReceiptFactory transactionReceiptFactory,
       final Wei blockReward,
       final MiningBeneficiaryCalculator miningBeneficiaryCalculator,
+      final OperationTracer operationTracer,
       final boolean skipZeroBlockRewards) {
     this.transactionProcessor = transactionProcessor;
     this.transactionReceiptFactory = transactionReceiptFactory;
     this.blockReward = blockReward;
     this.miningBeneficiaryCalculator = miningBeneficiaryCalculator;
+    this.operationTracer = operationTracer;
     this.skipZeroBlockRewards = skipZeroBlockRewards;
   }
 
@@ -168,8 +172,7 @@ public abstract class AbstractBlockProcessor implements BlockProcessor {
       final PrivateMetadataUpdater privateMetadataUpdater) {
 
     // --- kafka
-    final var tracer = tracer();
-    tracer.resetTraces();
+    operationTracer.resetTraces();
 
     var rlpOut = new BytesValueRLPOutput();
     rlpOut.startList();
@@ -180,7 +183,7 @@ public abstract class AbstractBlockProcessor implements BlockProcessor {
     rlpOut.writeList(ommers, BlockHeader::writeTo);
 
     rlpOut.endList();
-    tracer.addTrace(rlpOut.encoded());
+    operationTracer.addTrace(rlpOut.encoded());
     // --- end of kafka
 
     final List<TransactionReceipt> receipts = new ArrayList<>();
@@ -202,7 +205,7 @@ public abstract class AbstractBlockProcessor implements BlockProcessor {
               blockHeader,
               transaction,
               miningBeneficiary,
-              tracer,
+              operationTracer,
               blockHashLookup,
               true,
               TransactionValidationParams.processingBlock(),
@@ -250,9 +253,9 @@ public abstract class AbstractBlockProcessor implements BlockProcessor {
     rlpOut.writeList(receipts, TransactionReceipt::writeTo);
 
     rlpOut.endList();
-    tracer.addTrace(rlpOut.encoded());
+    operationTracer.addTrace(rlpOut.encoded());
 
-    tracer.commitTraces();
+    operationTracer.commitTraces();
     // --- end of kafka
 
     return AbstractBlockProcessor.Result.successful(receipts);
@@ -284,8 +287,4 @@ public abstract class AbstractBlockProcessor implements BlockProcessor {
       final BlockHeader header,
       final List<BlockHeader> ommers,
       final boolean skipZeroBlockRewards);
-
-  public OperationTracer tracer() {
-    return OperationTracer.NO_TRACING;
-  }
 }

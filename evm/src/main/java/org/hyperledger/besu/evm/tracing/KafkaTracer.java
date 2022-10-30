@@ -33,7 +33,7 @@ public class KafkaTracer implements OperationTracer {
   public static final byte BLOCK = 0;
   public static final byte RECEIPTS = 1;
   public static final byte REWARDS = 2;
-  public static final byte TRANSACTION = 3;
+  public static final byte TXCALL = 3;
   public static final byte TRANSFER = 10;
 
   private static KafkaTracer INSTANCE;
@@ -60,12 +60,13 @@ public class KafkaTracer implements OperationTracer {
     this.KAFKA_KEY = "eth";
 
     final var kafkaProps = new Properties();
-    kafkaProps.put("bootstrap.servers", "192.168.1.101:9092");
+    kafkaProps.put("bootstrap.servers", "192.168.1.102:9092");
     kafkaProps.put("acks", "all");
     kafkaProps.put("retries", 0);
     kafkaProps.put("linger.ms", 1);
     kafkaProps.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
     kafkaProps.put("value.serializer", "org.apache.kafka.common.serialization.ByteArraySerializer");
+    kafkaProps.put("max.request.size", 20971520);
 
     this.kafkaProducer = new KafkaProducer<>(kafkaProps);
   }

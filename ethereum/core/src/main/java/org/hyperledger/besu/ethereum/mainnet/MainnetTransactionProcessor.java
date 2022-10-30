@@ -402,7 +402,7 @@ public class MainnetTransactionProcessor {
       final var rlpOut = new BytesValueRLPOutput();
       rlpOut.startList();
 
-      rlpOut.writeByte(KafkaTracer.TRANSACTION);
+      rlpOut.writeByte(KafkaTracer.TXCALL);
       rlpOut.writeLongScalar(blockHeader.getNumber());
       rlpOut.writeLongScalar(blockHeader.getTimestamp());
       rlpOut.writeBytes(transaction.getHash());

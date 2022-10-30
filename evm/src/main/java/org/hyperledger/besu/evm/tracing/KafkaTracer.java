@@ -13,10 +13,10 @@
  * SPDX-License-Identifier: Apache-2.0
  *
  */
-
 package org.hyperledger.besu.evm.tracing;
 
 import org.hyperledger.besu.evm.frame.MessageFrame;
+import org.hyperledger.besu.evm.internal.EvmConfiguration;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -36,47 +36,55 @@ public class KafkaTracer implements OperationTracer {
   public static final byte TXCALL = 3;
   public static final byte TRANSFER = 10;
 
+  /*-
+   * $ bin/kafka-topics.sh --list --bootstrap-server localhost:9092
+   * $ bin/kafka-topics.sh --delete --bootstrap-server localhost:9092 --topic eth-mainnet
+   * $ bin/kafka-topics.sh --create --bootstrap-server localhost:9092 --topic eth-mainnet --config compression.type=gzip --replication-factor 1 --partitions 1  --config max.message.bytes=20971520
+   *
+   * Without compression, kafak logs 4G+/Day, 1.4T+/Year
+   * With gzip compression, logs about 852M/Day, 304G/Year
+   */
+
   private static KafkaTracer INSTANCE;
 
-  public static final KafkaTracer getInstance() {
+  /**
+   * Make sure it's singleton.
+   *
+   * @param config configurations for kafka which are stored in EvmConfiguration
+   * @return singleton KafkaTracer instance
+   */
+  public static final KafkaTracer getInstance(final EvmConfiguration config) {
     if (INSTANCE == null) {
-      INSTANCE = new KafkaTracer();
+      INSTANCE = new KafkaTracer(config);
     }
 
     return INSTANCE;
   }
 
-  private KafkaTracer() {
+  private final String topic;
+  private final String recordKey;
 
-    /*-
-     * $ bin/kafka-topics.sh --list --bootstrap-server localhost:9092
-     * $ bin/kafka-topics.sh --delete --bootstrap-server localhost:9092 --topic eth-txs
-     * $ bin/kafka-topics.sh --create --bootstrap-server localhost:9092 --topic eth-txs --config compression.type=gzip --replication-factor 1 --partitions 1
-     *
-     * Without compression, kafak logs 4G+/Day, 1.4T+/Year
-     * With gzip compression, logs about 852M/Day, 304G/Year
-     */
-    this.KAFKA_TOPIC = "eth-mainnet";
-    this.KAFKA_KEY = "eth";
-
-    final var kafkaProps = new Properties();
-    kafkaProps.put("bootstrap.servers", "192.168.1.102:9092");
-    kafkaProps.put("acks", "all");
-    kafkaProps.put("retries", 0);
-    kafkaProps.put("linger.ms", 1);
-    kafkaProps.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
-    kafkaProps.put("value.serializer", "org.apache.kafka.common.serialization.ByteArraySerializer");
-    kafkaProps.put("max.request.size", 20971520);
-
-    this.kafkaProducer = new KafkaProducer<>(kafkaProps);
-  }
-
-  public final String KAFKA_TOPIC;
-  public final String KAFKA_KEY;
-
-  private final Producer<String, byte[]> kafkaProducer;
+  private final Producer<String, byte[]> producer;
 
   private final List<Bytes> traces = new ArrayList<>();
+
+  private KafkaTracer(final EvmConfiguration config) {
+    this.topic = config.getKafkaTopic();
+    this.recordKey = config.getKafkaRecordKey();
+
+    final var kafkaProps = new Properties();
+
+    // --- fixed options
+    kafkaProps.put("acks", "all");
+    kafkaProps.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
+    kafkaProps.put("value.serializer", "org.apache.kafka.common.serialization.ByteArraySerializer");
+
+    // --- configurable options
+    kafkaProps.put("bootstrap.servers", config.getKafkaBootstrapServers());
+    kafkaProps.put("max.request.size", config.getKafkaMaxRequestSize());
+
+    this.producer = new KafkaProducer<>(kafkaProps);
+  }
 
   @Override
   public void resetTraces() {
@@ -101,9 +109,8 @@ public class KafkaTracer implements OperationTracer {
   @Override
   public void commitTraces() {
     for (var trace : traces) {
-      final var record =
-          new ProducerRecord<String, byte[]>(KAFKA_TOPIC, KAFKA_KEY, trace.toArray());
-      kafkaProducer.send(record);
+      final var record = new ProducerRecord<String, byte[]>(topic, recordKey, trace.toArray());
+      producer.send(record);
     }
   }
 

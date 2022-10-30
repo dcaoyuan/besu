@@ -54,7 +54,6 @@ import org.hyperledger.besu.evm.internal.EvmConfiguration;
 import org.hyperledger.besu.evm.processor.ContractCreationProcessor;
 import org.hyperledger.besu.evm.processor.MessageCallProcessor;
 import org.hyperledger.besu.evm.tracing.KafkaTracer;
-import org.hyperledger.besu.evm.tracing.OperationTracer;
 import org.hyperledger.besu.evm.worldstate.WorldState;
 import org.hyperledger.besu.evm.worldstate.WorldUpdater;
 import org.hyperledger.besu.plugin.data.TransactionType;
@@ -108,10 +107,8 @@ public abstract class MainnetProtocolSpecs {
     final int contractSizeLimit = configContractSizeLimit.orElse(FRONTIER_CONTRACT_SIZE_LIMIT);
     final int stackSizeLimit = configStackSizeLimit.orElse(MessageFrame.DEFAULT_MAX_STACK_SIZE);
 
-    final OperationTracer operationTracer = KafkaTracer.getInstance();
-
     return new ProtocolSpecBuilder()
-        .operationTracer(operationTracer)
+        .operationTracer(KafkaTracer.getInstance(evmConfiguration))
         .gasCalculator(FrontierGasCalculator::new)
         .gasLimitCalculator(new FrontierTargetingGasLimitCalculator())
         .evmBuilder(MainnetEVMs::frontier)

@@ -77,8 +77,7 @@ public class ProtocolSpecBuilder {
   private BadBlockManager badBlockManager;
   private PoWHasher powHasher = PoWHasher.ETHASH_LIGHT;
 
-  private OperationTracer operationTracer =
-      OperationTracer.NO_TRACING; // KafkaTracer.getInstance();
+  private OperationTracer operationTracer = OperationTracer.NO_TRACING;
 
   public ProtocolSpecBuilder operationTracer(final OperationTracer operationTracer) {
     this.operationTracer = operationTracer;

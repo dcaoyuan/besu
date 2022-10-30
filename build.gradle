@@ -462,10 +462,10 @@ jar { enabled = false }
 apply plugin: 'application'
 mainClassName = 'org.hyperledger.besu.Besu'
 applicationDefaultJvmArgs = [
-  '-server',
   '-Dvertx.disableFileCPResolving=true',
   // BESU_HOME is replaced by a doFirst block in the run task.
   '-Dbesu.home=BESU_HOME',
+  '-server',
   // We shutdown log4j ourselves, as otherwise this shutdown hook runs before our own and whatever
   // happens during shutdown is not logged.
   '-Dlog4j.shutdownHookEnabled=false',

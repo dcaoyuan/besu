@@ -16,6 +16,7 @@ package org.hyperledger.besu.evm.processor;
 
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
+import org.hyperledger.besu.ethereum.rlp.BytesValueRLPOutput;
 import org.hyperledger.besu.evm.EVM;
 import org.hyperledger.besu.evm.ModificationNotAllowedException;
 import org.hyperledger.besu.evm.account.EvmAccount;
@@ -23,6 +24,7 @@ import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.precompile.PrecompileContractRegistry;
 import org.hyperledger.besu.evm.precompile.PrecompiledContract;
+import org.hyperledger.besu.evm.tracing.KafkaTracer;
 import org.hyperledger.besu.evm.tracing.OperationTracer;
 
 import java.util.Collection;
@@ -55,7 +57,7 @@ public class MessageCallProcessor extends AbstractMessageProcessor {
   public void start(final MessageFrame frame, final OperationTracer operationTracer) {
     LOG.trace("Executing message-call");
     try {
-      transferValue(frame);
+      transferValue(frame, operationTracer);
 
       // Check first if the message call is to a pre-compile contract
       final PrecompiledContract precompile = precompiles.get(frame.getContractAddress());
@@ -87,7 +89,7 @@ public class MessageCallProcessor extends AbstractMessageProcessor {
    * <p>Assumes that the transaction has been validated so that the sender has the required fund as
    * of the world state of this executor.
    */
-  private void transferValue(final MessageFrame frame) {
+  private void transferValue(final MessageFrame frame, final OperationTracer operationTracer) {
     final EvmAccount senderAccount = frame.getWorldUpdater().getSenderAccount(frame);
 
     // The yellow paper explicitly states that if the recipient account doesn't exist at this
@@ -114,6 +116,19 @@ public class MessageCallProcessor extends AbstractMessageProcessor {
       final Wei prevSenderBalance = senderAccount.getMutable().decrementBalance(frame.getValue());
       final Wei prevRecipientBalance =
           recipientAccount.getMutable().incrementBalance(frame.getValue());
+
+      // --- kafka
+      final var rlpOut = new BytesValueRLPOutput();
+      rlpOut.startList();
+
+      rlpOut.writeByte(KafkaTracer.TRANSFER);
+      rlpOut.writeBytes(senderAccount.getAddress());
+      rlpOut.writeBytes(recipientAccount.getAddress());
+      rlpOut.writeBytes(frame.getValue());
+
+      rlpOut.endList();
+      operationTracer.addTrace(rlpOut.encoded());
+      // --- end of kafka
 
       LOG.trace(
           "Transferred value {} for message call from {} ({} -> {}) to {} ({} -> {})",

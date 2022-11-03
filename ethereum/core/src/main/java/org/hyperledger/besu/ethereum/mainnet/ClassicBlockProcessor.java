@@ -18,6 +18,7 @@ import org.hyperledger.besu.datatypes.Wei;
 import org.hyperledger.besu.ethereum.core.BlockHeader;
 import org.hyperledger.besu.ethereum.core.MutableWorldState;
 import org.hyperledger.besu.evm.account.MutableAccount;
+import org.hyperledger.besu.evm.tracing.OperationTracer;
 import org.hyperledger.besu.evm.worldstate.WorldUpdater;
 
 import java.math.BigInteger;
@@ -40,6 +41,7 @@ public class ClassicBlockProcessor extends AbstractBlockProcessor {
       final TransactionReceiptFactory transactionReceiptFactory,
       final Wei blockReward,
       final MiningBeneficiaryCalculator miningBeneficiaryCalculator,
+      final OperationTracer operationTracer,
       final boolean skipZeroBlockRewards,
       final OptionalLong eraLen) {
     super(
@@ -47,6 +49,7 @@ public class ClassicBlockProcessor extends AbstractBlockProcessor {
         transactionReceiptFactory,
         blockReward,
         miningBeneficiaryCalculator,
+        operationTracer,
         skipZeroBlockRewards);
     eraLength = eraLen.orElse(DEFAULT_ERA_LENGTH);
   }

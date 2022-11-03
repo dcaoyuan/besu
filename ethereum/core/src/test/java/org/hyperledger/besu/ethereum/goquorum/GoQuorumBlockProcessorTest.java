@@ -39,6 +39,7 @@ import org.hyperledger.besu.ethereum.mainnet.MainnetTransactionProcessor;
 import org.hyperledger.besu.ethereum.mainnet.MainnetTransactionValidator;
 import org.hyperledger.besu.ethereum.referencetests.ReferenceTestBlockchain;
 import org.hyperledger.besu.ethereum.referencetests.ReferenceTestWorldState;
+import org.hyperledger.besu.evm.tracing.OperationTracer;
 
 import java.util.Collections;
 import java.util.Optional;
@@ -76,6 +77,7 @@ public class GoQuorumBlockProcessorTest {
             transactionReceiptFactory,
             Wei.ZERO,
             BlockHeader::getCoinbase,
+            OperationTracer.NO_TRACING,
             true,
             Optional.of(goQuorumPrivacyParameters));
 
@@ -102,6 +104,7 @@ public class GoQuorumBlockProcessorTest {
             transactionReceiptFactory,
             Wei.ZERO,
             BlockHeader::getCoinbase,
+            OperationTracer.NO_TRACING,
             false,
             Optional.of(goQuorumPrivacyParameters));
 
@@ -128,6 +131,7 @@ public class GoQuorumBlockProcessorTest {
             transactionReceiptFactory,
             Wei.ZERO,
             BlockHeader::getCoinbase,
+            OperationTracer.NO_TRACING,
             false,
             Optional.of(goQuorumPrivacyParameters));
 

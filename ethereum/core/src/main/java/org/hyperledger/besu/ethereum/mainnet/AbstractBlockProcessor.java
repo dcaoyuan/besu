@@ -27,7 +27,9 @@ import org.hyperledger.besu.ethereum.core.Transaction;
 import org.hyperledger.besu.ethereum.core.TransactionReceipt;
 import org.hyperledger.besu.ethereum.privacy.storage.PrivateMetadataUpdater;
 import org.hyperledger.besu.ethereum.processing.TransactionProcessingResult;
+import org.hyperledger.besu.ethereum.rlp.BytesValueRLPOutput;
 import org.hyperledger.besu.ethereum.vm.BlockHashLookup;
+import org.hyperledger.besu.evm.tracing.KafkaTracer;
 import org.hyperledger.besu.evm.tracing.OperationTracer;
 import org.hyperledger.besu.evm.worldstate.WorldState;
 import org.hyperledger.besu.evm.worldstate.WorldUpdater;
@@ -67,16 +69,20 @@ public abstract class AbstractBlockProcessor implements BlockProcessor {
 
   protected final MiningBeneficiaryCalculator miningBeneficiaryCalculator;
 
+  protected final OperationTracer operationTracer;
+
   protected AbstractBlockProcessor(
       final MainnetTransactionProcessor transactionProcessor,
       final TransactionReceiptFactory transactionReceiptFactory,
       final Wei blockReward,
       final MiningBeneficiaryCalculator miningBeneficiaryCalculator,
+      final OperationTracer operationTracer,
       final boolean skipZeroBlockRewards) {
     this.transactionProcessor = transactionProcessor;
     this.transactionReceiptFactory = transactionReceiptFactory;
     this.blockReward = blockReward;
     this.miningBeneficiaryCalculator = miningBeneficiaryCalculator;
+    this.operationTracer = operationTracer;
     this.skipZeroBlockRewards = skipZeroBlockRewards;
   }
 
@@ -88,6 +94,22 @@ public abstract class AbstractBlockProcessor implements BlockProcessor {
       final List<Transaction> transactions,
       final List<BlockHeader> ommers,
       final PrivateMetadataUpdater privateMetadataUpdater) {
+
+    // --- kafka
+    operationTracer.resetTraces();
+
+    var rlpOut = new BytesValueRLPOutput();
+    rlpOut.startList();
+
+    rlpOut.writeByte(KafkaTracer.BLOCK);
+    blockHeader.writeTo(rlpOut);
+    rlpOut.writeList(transactions, Transaction::writeTo);
+    rlpOut.writeList(ommers, BlockHeader::writeTo);
+
+    rlpOut.endList();
+    operationTracer.addTrace(rlpOut.encoded());
+    // --- end of kafka
+
     final List<TransactionReceipt> receipts = new ArrayList<>();
     long currentGasUsed = 0;
     for (final Transaction transaction : transactions) {
@@ -107,7 +129,7 @@ public abstract class AbstractBlockProcessor implements BlockProcessor {
               blockHeader,
               transaction,
               miningBeneficiary,
-              OperationTracer.NO_TRACING,
+              operationTracer,
               blockHashLookup,
               true,
               TransactionValidationParams.processingBlock(),
@@ -148,6 +170,19 @@ public abstract class AbstractBlockProcessor implements BlockProcessor {
       LOG.error("failed persisting block", e);
       return new BlockProcessingResult(Optional.empty(), e);
     }
+
+    // --- kafka
+    rlpOut = new BytesValueRLPOutput();
+    rlpOut.startList();
+
+    rlpOut.writeByte(KafkaTracer.RECEIPTS);
+    rlpOut.writeList(receipts, TransactionReceipt::writeTo);
+
+    rlpOut.endList();
+    operationTracer.addTrace(rlpOut.encoded());
+
+    operationTracer.commitTraces();
+    // --- end of kafka
 
     return new BlockProcessingResult(Optional.of(new BlockProcessingOutputs(worldState, receipts)));
   }

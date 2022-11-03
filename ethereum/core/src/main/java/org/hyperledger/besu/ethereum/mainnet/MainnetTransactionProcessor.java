@@ -29,6 +29,8 @@ import org.hyperledger.besu.ethereum.core.feemarket.CoinbaseFeePriceCalculator;
 import org.hyperledger.besu.ethereum.mainnet.feemarket.FeeMarket;
 import org.hyperledger.besu.ethereum.privacy.storage.PrivateMetadataUpdater;
 import org.hyperledger.besu.ethereum.processing.TransactionProcessingResult;
+import org.hyperledger.besu.ethereum.rlp.BytesValueRLPOutput;
+import org.hyperledger.besu.ethereum.rlp.RLPOutput;
 import org.hyperledger.besu.ethereum.transaction.TransactionInvalidReason;
 import org.hyperledger.besu.ethereum.vm.BlockHashLookup;
 import org.hyperledger.besu.ethereum.worldstate.GoQuorumMutablePrivateWorldStateUpdater;
@@ -39,7 +41,10 @@ import org.hyperledger.besu.evm.account.EvmAccount;
 import org.hyperledger.besu.evm.account.MutableAccount;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
+import org.hyperledger.besu.evm.internal.SHA3Call;
+import org.hyperledger.besu.evm.internal.StorageUpdate;
 import org.hyperledger.besu.evm.processor.AbstractMessageProcessor;
+import org.hyperledger.besu.evm.tracing.KafkaTracer;
 import org.hyperledger.besu.evm.tracing.OperationTracer;
 import org.hyperledger.besu.evm.worldstate.WorldUpdater;
 
@@ -393,9 +398,71 @@ public class MainnetTransactionProcessor {
 
       messageFrameStack.addFirst(initialFrame);
 
+      // --- kafka mixed
+      final var rlpOut = new BytesValueRLPOutput();
+      rlpOut.startList();
+
+      rlpOut.writeByte(KafkaTracer.TXCALL);
+      rlpOut.writeLongScalar(blockHeader.getNumber());
+      rlpOut.writeLongScalar(blockHeader.getTimestamp());
+      rlpOut.writeBytes(transaction.getHash());
+
+      rlpOut.startList();
+      var nextId = 0;
       while (!messageFrameStack.isEmpty()) {
-        process(messageFrameStack.peekFirst(), operationTracer);
+        final var messageFrame = messageFrameStack.peekFirst();
+
+        boolean isNewFrame;
+        if (messageFrame.getId() == -1) {
+          isNewFrame = true;
+
+          messageFrame.setId(nextId);
+          nextId++;
+
+        } else {
+          isNewFrame = false;
+        }
+
+        rlpOut.startList();
+
+        rlpOut.writeInt(messageFrame.getId());
+
+        if (isNewFrame) {
+          rlpOut.writeByte((byte) 1);
+          rlpWriteFramePre(rlpOut, messageFrame);
+
+        } else {
+          rlpOut.writeByte((byte) 0);
+        }
+
+        final var nTracesPreProcess = operationTracer.getTraces().size();
+
+        process(messageFrame, operationTracer);
+
+        // attach traces during process()
+        final var tracesPostProcess = operationTracer.getTraces();
+        final var delta = tracesPostProcess.size() - nTracesPreProcess;
+        final var toRemove = new ArrayList<Bytes>();
+        rlpOut.startList();
+        for (var i = delta; i > 0; i--) {
+          final var trace = tracesPostProcess.get(tracesPostProcess.size() - i);
+          rlpOut.writeRLPBytes(trace);
+          toRemove.add(trace);
+        }
+        rlpOut.endList();
+        for (var trace : toRemove) {
+          operationTracer.removeTrace(trace);
+        }
+
+        rlpWriteFrameUpdatedStorages(rlpOut, messageFrame);
+        rlpWriteFramePost(rlpOut, messageFrame);
+
+        rlpOut.endList();
       }
+      rlpOut.endList(); // end of while-loop
+
+      rlpOut.endList();
+      // --- end of kafka mixed
 
       if (initialFrame.getState() == MessageFrame.State.COMPLETED_SUCCESS) {
         worldUpdater.commit();
@@ -452,6 +519,10 @@ public class MainnetTransactionProcessor {
       }
 
       if (initialFrame.getState() == MessageFrame.State.COMPLETED_SUCCESS) {
+        // --- kafka
+        operationTracer.addTrace(rlpOut.encoded());
+        // --- end of kafka
+
         return TransactionProcessingResult.successful(
             initialFrame.getLogs(),
             gasUsedByTransaction,
@@ -468,6 +539,52 @@ public class MainnetTransactionProcessor {
           ValidationResult.invalid(
               TransactionInvalidReason.INTERNAL_ERROR, "Internal Error in Besu - " + re));
     }
+  }
+
+  private void rlpWriteFramePre(final RLPOutput out, final MessageFrame mf) {
+    out.writeBytes(mf.getOriginatorAddress());
+    out.writeBytes(mf.getSenderAddress());
+    out.writeBytes(mf.getRecipientAddress());
+    out.writeBytes(mf.getContractAddress());
+    out.writeInt(mf.getType().ordinal());
+    out.writeBytes(mf.getInputData().copy());
+    out.writeUInt256Scalar(mf.getGasPrice());
+    out.writeUInt256Scalar(mf.getValue());
+    out.writeUInt256Scalar(mf.getApparentValue());
+    out.writeInt(mf.getMessageStackDepth());
+  }
+
+  private void rlpWriteFrameUpdatedStorages(final RLPOutput out, final MessageFrame mf) {
+    out.startList();
+    for (SHA3Call sha3Call : mf.getSha3Calls()) {
+      out.startList();
+
+      out.writeBytes(sha3Call.getIn());
+      out.writeBytes(sha3Call.getOut());
+
+      out.endList();
+    }
+    out.endList();
+
+    mf.getSha3Calls().clear(); // clear logged
+
+    out.startList();
+    for (StorageUpdate update : mf.getStorageUpdates()) {
+      out.startList();
+
+      out.writeUInt256Scalar(update.getOffset());
+      out.writeBytes(update.getOldValue());
+      out.writeBytes(update.getNewValue());
+
+      out.endList();
+    }
+    out.endList();
+
+    mf.getStorageUpdates().clear(); // clear logged
+  }
+
+  private void rlpWriteFramePost(final RLPOutput out, final MessageFrame mf) {
+    out.writeBytes(mf.getSealedOutputData());
   }
 
   public MainnetTransactionValidator getTransactionValidator() {

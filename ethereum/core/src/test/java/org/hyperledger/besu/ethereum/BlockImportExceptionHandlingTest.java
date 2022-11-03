@@ -44,6 +44,7 @@ import org.hyperledger.besu.ethereum.mainnet.MainnetTransactionProcessor;
 import org.hyperledger.besu.ethereum.storage.StorageProvider;
 import org.hyperledger.besu.ethereum.worldstate.WorldStateArchive;
 import org.hyperledger.besu.ethereum.worldstate.WorldStateStorage;
+import org.hyperledger.besu.evm.tracing.OperationTracer;
 import org.hyperledger.besu.plugin.services.exception.StorageException;
 
 import java.util.Optional;
@@ -64,6 +65,7 @@ public class BlockImportExceptionHandlingTest {
           transactionReceiptFactory,
           Wei.ZERO,
           BlockHeader::getCoinbase,
+          OperationTracer.NO_TRACING,
           true,
           Optional.empty());
   private final BlockHeaderValidator blockHeaderValidator = mock(BlockHeaderValidator.class);

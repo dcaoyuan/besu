@@ -18,6 +18,7 @@ import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.operation.Operation.OperationResult;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.apache.tuweni.bytes.Bytes;
@@ -30,6 +31,18 @@ public interface OperationTracer {
 
   default void tracePostExecution(
       final MessageFrame frame, final OperationResult operationResult) {}
+
+  default void resetTraces() {}
+
+  default void addTrace(final Bytes bytes) {}
+
+  default List<Bytes> getTraces() {
+    return List.of();
+  }
+
+  default void removeTrace(final Bytes bytes) {}
+
+  default void commitTraces() {}
 
   default void tracePrecompileCall(
       final MessageFrame frame, final long gasRequirement, final Bytes output) {}

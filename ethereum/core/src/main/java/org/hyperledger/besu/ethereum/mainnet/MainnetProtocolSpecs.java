@@ -54,6 +54,7 @@ import org.hyperledger.besu.evm.gascalculator.TangerineWhistleGasCalculator;
 import org.hyperledger.besu.evm.internal.EvmConfiguration;
 import org.hyperledger.besu.evm.processor.ContractCreationProcessor;
 import org.hyperledger.besu.evm.processor.MessageCallProcessor;
+import org.hyperledger.besu.evm.tracing.KafkaTracer;
 import org.hyperledger.besu.evm.worldstate.WorldState;
 import org.hyperledger.besu.evm.worldstate.WorldUpdater;
 import org.hyperledger.besu.plugin.data.TransactionType;
@@ -107,6 +108,7 @@ public abstract class MainnetProtocolSpecs {
     final int contractSizeLimit = configContractSizeLimit.orElse(FRONTIER_CONTRACT_SIZE_LIMIT);
     final int stackSizeLimit = configStackSizeLimit.orElse(MessageFrame.DEFAULT_MAX_STACK_SIZE);
     return new ProtocolSpecBuilder()
+        .operationTracer(KafkaTracer.getInstance(evmConfiguration))
         .gasCalculator(FrontierGasCalculator::new)
         .gasLimitCalculator(new FrontierTargetingGasLimitCalculator())
         .evmBuilder(MainnetEVMs::frontier)
@@ -246,6 +248,7 @@ public abstract class MainnetProtocolSpecs {
                 transactionReceiptFactory,
                 blockReward,
                 miningBeneficiaryCalculator,
+                operationTracer,
                 skipZeroBlockRewards,
                 goQuorumPrivacyParameters) ->
                 new DaoBlockProcessor(
@@ -254,6 +257,7 @@ public abstract class MainnetProtocolSpecs {
                         transactionReceiptFactory,
                         blockReward,
                         miningBeneficiaryCalculator,
+                        operationTracer,
                         skipZeroBlockRewards,
                         Optional.empty())))
         .name("DaoRecoveryInit");

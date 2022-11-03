@@ -16,11 +16,27 @@
 package org.hyperledger.besu.evm.internal;
 
 public class EvmConfiguration {
-  public static final EvmConfiguration DEFAULT = new EvmConfiguration(32_000L);
+  public static final EvmConfiguration DEFAULT = new EvmConfiguration(32_000L, "", "", "", 0);
+
   private final long jumpDestCacheWeightKB;
 
-  public EvmConfiguration(final long jumpDestCacheWeightKB) {
+  private final String kafkaTopic;
+  private final String kafkaRecordKey;
+  private final String kafkaBootstrapServers;
+  private final int kafkaMaxRequestSize;
+
+  public EvmConfiguration(
+      final long jumpDestCacheWeightKB,
+      final String kafkaTopic,
+      final String kafkaRecordKey,
+      final String kafkaBootstrapServers,
+      final int kafkaMaxRequestSize) {
     this.jumpDestCacheWeightKB = jumpDestCacheWeightKB;
+
+    this.kafkaTopic = kafkaTopic;
+    this.kafkaRecordKey = kafkaRecordKey;
+    this.kafkaBootstrapServers = kafkaBootstrapServers;
+    this.kafkaMaxRequestSize = kafkaMaxRequestSize;
   }
 
   public long getJumpDestCacheWeightBytes() {
@@ -29,5 +45,21 @@ public class EvmConfiguration {
 
   public long getJumpDestCacheWeightKB() {
     return jumpDestCacheWeightKB;
+  }
+
+  public String getKafkaTopic() {
+    return kafkaTopic;
+  }
+
+  public String getKafkaRecordKey() {
+    return kafkaRecordKey;
+  }
+
+  public String getKafkaBootstrapServers() {
+    return kafkaBootstrapServers;
+  }
+
+  public int getKafkaMaxRequestSize() {
+    return kafkaMaxRequestSize;
   }
 }

@@ -27,6 +27,7 @@ import org.hyperledger.besu.ethereum.core.BlockHeaderTestFixture;
 import org.hyperledger.besu.ethereum.core.MutableWorldState;
 import org.hyperledger.besu.ethereum.referencetests.ReferenceTestBlockchain;
 import org.hyperledger.besu.ethereum.referencetests.ReferenceTestWorldState;
+import org.hyperledger.besu.evm.tracing.OperationTracer;
 
 import java.util.Optional;
 
@@ -51,6 +52,7 @@ public class MainnetBlockProcessorTest {
             transactionReceiptFactory,
             Wei.ZERO,
             BlockHeader::getCoinbase,
+            OperationTracer.NO_TRACING,
             true,
             Optional.empty());
 
@@ -77,6 +79,7 @@ public class MainnetBlockProcessorTest {
             transactionReceiptFactory,
             Wei.ZERO,
             BlockHeader::getCoinbase,
+            OperationTracer.NO_TRACING,
             false,
             Optional.empty());
 

@@ -19,7 +19,10 @@ import org.hyperledger.besu.datatypes.Wei;
 import org.hyperledger.besu.ethereum.core.BlockHeader;
 import org.hyperledger.besu.ethereum.core.GoQuorumPrivacyParameters;
 import org.hyperledger.besu.ethereum.core.MutableWorldState;
+import org.hyperledger.besu.ethereum.rlp.BytesValueRLPOutput;
 import org.hyperledger.besu.evm.account.MutableAccount;
+import org.hyperledger.besu.evm.tracing.KafkaTracer;
+import org.hyperledger.besu.evm.tracing.OperationTracer;
 import org.hyperledger.besu.evm.worldstate.WorldUpdater;
 
 import java.util.List;
@@ -37,6 +40,7 @@ public class MainnetBlockProcessor extends AbstractBlockProcessor {
       final AbstractBlockProcessor.TransactionReceiptFactory transactionReceiptFactory,
       final Wei blockReward,
       final MiningBeneficiaryCalculator miningBeneficiaryCalculator,
+      final OperationTracer operationTracer,
       final boolean skipZeroBlockRewards,
       final Optional<GoQuorumPrivacyParameters> goQuorumPrivacyParameters) {
     super(
@@ -44,6 +48,7 @@ public class MainnetBlockProcessor extends AbstractBlockProcessor {
         transactionReceiptFactory,
         blockReward,
         miningBeneficiaryCalculator,
+        operationTracer,
         skipZeroBlockRewards);
   }
 
@@ -64,6 +69,17 @@ public class MainnetBlockProcessor extends AbstractBlockProcessor {
         updater.getOrCreate(miningBeneficiary).getMutable();
 
     miningBeneficiaryAccount.incrementBalance(coinbaseReward);
+
+    // --- kafka
+    final var rlpOut = new BytesValueRLPOutput();
+    rlpOut.startList();
+
+    rlpOut.writeByte(KafkaTracer.REWARDS);
+    rlpOut.writeBytes(coinbaseReward);
+
+    rlpOut.startList(); // for-loop
+    // --- end of kafka
+
     for (final BlockHeader ommerHeader : ommers) {
       if (ommerHeader.getNumber() - header.getNumber() > MAX_GENERATION) {
         LOG.info(
@@ -79,9 +95,25 @@ public class MainnetBlockProcessor extends AbstractBlockProcessor {
       final Wei ommerReward =
           getOmmerReward(blockReward, header.getNumber(), ommerHeader.getNumber());
       ommerCoinbase.incrementBalance(ommerReward);
+
+      // --- kafka
+      rlpOut.startList();
+
+      rlpOut.writeBytes(ommerHeader.getBlockHash());
+      rlpOut.writeBytes(ommerReward);
+
+      rlpOut.endList();
+      // --- end of kafka
     }
 
     updater.commit();
+
+    // --- kafka
+    rlpOut.endList(); // end for-loop
+
+    rlpOut.endList();
+    operationTracer.addTrace(rlpOut.encoded());
+    // --- end of kafka
 
     return true;
   }

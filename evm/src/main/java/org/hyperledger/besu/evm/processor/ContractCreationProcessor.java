@@ -15,6 +15,7 @@
 package org.hyperledger.besu.evm.processor;
 
 import org.hyperledger.besu.datatypes.Address;
+import org.hyperledger.besu.ethereum.rlp.BytesValueRLPOutput;
 import org.hyperledger.besu.evm.EVM;
 import org.hyperledger.besu.evm.ModificationNotAllowedException;
 import org.hyperledger.besu.evm.account.Account;
@@ -23,6 +24,7 @@ import org.hyperledger.besu.evm.contractvalidation.ContractValidationRule;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
+import org.hyperledger.besu.evm.tracing.KafkaTracer;
 import org.hyperledger.besu.evm.tracing.OperationTracer;
 
 import java.util.Collection;
@@ -107,6 +109,19 @@ public class ContractCreationProcessor extends AbstractMessageProcessor {
         contract.setNonce(initialContractNonce);
         contract.clearStorage();
         frame.setState(MessageFrame.State.CODE_EXECUTING);
+
+        // --- kafka
+        final var rlpOut = new BytesValueRLPOutput();
+        rlpOut.startList();
+
+        rlpOut.writeByte(KafkaTracer.TRANSFER);
+        rlpOut.writeBytes(sender.getAddress());
+        rlpOut.writeBytes(contract.getAddress());
+        rlpOut.writeBytes(frame.getValue());
+
+        rlpOut.endList();
+        operationTracer.addTrace(rlpOut.encoded());
+        // --- end of kafka
       }
     } catch (final ModificationNotAllowedException ex) {
       LOG.trace("Contract creation error: attempt to mutate an immutable account");

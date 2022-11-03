@@ -131,7 +131,7 @@ allprojects {
       target '**/*.java'
       targetExclude '**/src/reference-test/**', '**/src/main/generated/**', '**/src/test/generated/**', '**/src/jmh/generated/**'
       removeUnusedImports()
-      googleJavaFormat('1.10.0')
+      googleJavaFormat('1.13.0') // 1.15.0 may get java.lang.NoSuchMethodError: 'com.google.common.collect.ImmutableMap com.google.common.collect.ImmutableMap$Builder.buildOrThrow()'
       importOrder 'org.hyperledger', 'java', ''
       trimTrailingWhitespace()
       endWithNewline()
@@ -465,6 +465,7 @@ applicationDefaultJvmArgs = [
   '-Dvertx.disableFileCPResolving=true',
   // BESU_HOME is replaced by a doFirst block in the run task.
   '-Dbesu.home=BESU_HOME',
+  '-server',
   // We shutdown log4j ourselves, as otherwise this shutdown hook runs before our own and whatever
   // happens during shutdown is not logged.
   '-Dlog4j.shutdownHookEnabled=false',

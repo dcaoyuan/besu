@@ -42,7 +42,11 @@ public class Keccak256Operation extends AbstractOperation {
     }
 
     final Bytes bytes = frame.readMutableMemory(from, length);
-    frame.pushStackItem(UInt256.fromBytes(keccak256(bytes)));
+
+    final Bytes hashBytes = keccak256(bytes);
+    frame.pushStackItem(UInt256.fromBytes(hashBytes));
+    frame.sha3Called(bytes, hashBytes);
+
     return new OperationResult(cost, null);
   }
 }

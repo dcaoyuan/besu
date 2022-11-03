@@ -44,9 +44,44 @@ public class EvmOptions implements CLIOptions<EvmConfiguration> {
   private Long jumpDestCacheWeightKilobytes =
       32_000L; // 10k contracts, (25k max contract size / 8 bit) + 32byte hash
 
+  // --- since kafka tracer is part of evm, it makes sense to put kafka options in EvmOptions..
+
+  @SuppressWarnings({"FieldCanBeFinal", "FieldMayBeFinal"})
+  @CommandLine.Option(
+      hidden = true,
+      names = {"--Xkafka-topic"},
+      description = "Kafka topic name")
+  private String kafkaTopic = "eth-mainnet-test";
+
+  @SuppressWarnings({"FieldCanBeFinal", "FieldMayBeFinal"})
+  @CommandLine.Option(
+      hidden = true,
+      names = {"--Xkafka-record-key"},
+      description = "Kafka record key")
+  private String kafkaRecordKey = "eth";
+
+  @SuppressWarnings({"FieldCanBeFinal", "FieldMayBeFinal"})
+  @CommandLine.Option(
+      hidden = true,
+      names = {"--Xkafka-bootstrap-servers"},
+      description = "Kafka bootstrap servers")
+  private String kafkaBootstrapServers = "192.168.1.102:9092";
+
+  @SuppressWarnings({"FieldCanBeFinal", "FieldMayBeFinal"})
+  @CommandLine.Option(
+      hidden = true,
+      names = {"--Xkafka-max-request-size"},
+      description = "The maximum size of a request in bytes.")
+  private Integer kafkaMaxRequestSize = 20_971_520; // 20M bytes
+
   @Override
   public EvmConfiguration toDomainObject() {
-    return new EvmConfiguration(jumpDestCacheWeightKilobytes);
+    return new EvmConfiguration(
+        jumpDestCacheWeightKilobytes,
+        kafkaTopic,
+        kafkaRecordKey,
+        kafkaBootstrapServers,
+        kafkaMaxRequestSize);
   }
 
   @Override
